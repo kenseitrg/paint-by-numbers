@@ -1,7 +1,10 @@
+from pathlib import Path
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 from scipy.spatial import Voronoi
+import pandas as pd
 from tqdm import tqdm
+from utils.img_utils import display_image
 
 
 def get_voronoi_diagram(xs, ys, radius=None):
@@ -76,7 +79,7 @@ def generate_image(n_digits: int = 9, min_font: int = 12, max_font: int = 20, ma
     assert img_height // (2 * max_font) > n_digits
     img = Image.new(mode="RGB", size=(img_width, img_height), color="#ffffff")
     draw = ImageDraw.Draw(img, mode="RGB")
-    draw.rectangle([(0, 0), (img_width-1, img_height-1)], outline="#000000", fill="#ffffff")\
+    draw.rectangle([(0, 0), (img_width-1, img_height-1)], outline="#000000", fill="#ffffff")
 
     font_size = np.random.randint(min_font, max_font)
     xs = np.random.randint(font_size, img_width-font_size, size=n_digits)
@@ -90,11 +93,17 @@ def generate_image(n_digits: int = 9, min_font: int = 12, max_font: int = 20, ma
     xs = xs[:n_digits]
     ys = ys[:n_digits]
 
+    targets = []
+
     for i in range(n_digits):
         font = ImageFont.truetype("arial.ttf", font_size)
         x, y = xs[i], ys[i]
         text = str(np.random.randint(1, max_digit))
         draw.text((x, y), text, fill="#000000", font=font)
+        target = {"class": int(text), "box_x": x, "box_y": y, 
+                    "box_width": font_size, "box_height": font_size,
+                    "center_x": x+font_size//2, "center_y": y+font_size//2}
+        targets.append(target)
 
     new_regions, new_vertices = get_voronoi_diagram(xs, ys)
 
@@ -103,15 +112,32 @@ def generate_image(n_digits: int = 9, min_font: int = 12, max_font: int = 20, ma
         region_to_draw = list(map(tuple, region_to_draw))
         draw.polygon(region_to_draw, outline="#000000")
 
-    return img
+    return img, targets
 
 
-print("Generating train set")
-for i in tqdm(range(2500)):
-    img = generate_image()
-    img.save(f"images/train/train_{i}.png", "PNG")
-
-print("Generating test set")
-for i in tqdm(range(1000)):
-    img = generate_image()
-    img.save(f"images/train/test_{i}.png", "PNG")
+if __name__ == "__main__":
+    targets_train = []
+    print("Generating train set")
+    (Path.cwd() / "images" / "train").mkdir(parents=True, exist_ok=True)
+    for i in tqdm(range(3000)):
+        img, tgts = generate_image()
+        for t in tgts:
+            t["file"] = f"/images/train/train_{i}.png"
+        targets_train += tgts
+        img.save((Path.cwd() / "images" / "train" / f"train_{i}.png"), "PNG")
+    train_df = pd.DataFrame(targets_train)
+    train_df.to_excel((Path.cwd() / "images" / "train" / "train_target.xlsx"))
+    
+    targets_test = []
+    print("Generating test set")
+    (Path.cwd() / "images" / "test").mkdir(parents=True, exist_ok=True)
+    for i in tqdm(range(500)):
+        img, tgts = generate_image()
+        for t in tgts:
+            t["file"] = f"/images/test/test_{i}.png"
+        targets_test += tgts
+        img.save((Path.cwd() / "images" / "test" / f"test_{i}.png"), "PNG")
+    test_df = pd.DataFrame(targets_test)
+    test_df.to_excel((Path.cwd() / "images" / "test" / "test_target.xlsx"))
+#img, targets = generate_image()
+#display_image(img, targets)

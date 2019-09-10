@@ -1,2 +1,3 @@
 .vscode
-generator/images
+images
+*__pycache__
